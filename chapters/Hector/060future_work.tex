@@ -1,0 +1,34 @@
+\section{Discussion on Extensibility}\label{sec:future_work}
+
+\subsection{Support for New Optimizations}
+Hector is designed as an extensible framework to prototype and evaluate new techniques. First, inter-operator optimizations can be prototyped as inter-operator level passes. Second, data layout optimizations can be supported by adding the corresponding intermediate data and adjacency access schemes discussed in Section~\ref{sec:inter_op_ir}.
+Third, kernel optimizations can be prototyped as a kernel template and operator instances based on it. Alternatively, they can be implemented as operator-specific schedules.
+
+Table~\ref{tab:feature_examples} shows how the proposed compiler could be extended to support common kernel optimizations from the high-performance computing community. Each row in the table shows an example of the new feature to support in bold, followed by an approach to add support to it in our system. For example, to enable row reordering to balance the load, we can add a schedule option at the intra-operator level such that, when enabled, the compiler remaps the row loop index to the row index.
+
+
+
+
+\begin{table}[]
+\centering
+\begin{tabular}{p{13cm}}
+\toprule
+\textbf{Features}: How to support them in our system?    \\\midrule
+\textbf{Different data reuse strategies \cite{yesilDenseDynamicBlocks2022}}: We can support it by adding primitives in the operator schedule at the intra-operator level IR including tile, tile\_edges, reuse, etc.                                               \\
+\textbf{Row reorder to balance load \cite{hegdeExTensorAcceleratorSparse2019}}: We may add a schedule option such that, when it is enabled, the compiler uses a custom remapping function to get the row index from the loop index.                   \\
+\textbf{Parameter tuning \cite{vuducAutomaticPerformanceTuning2003}}: We can specify the parameters and set their values in the operator schedule at the intra-operator level IR.                                                                           \\
+\textbf{Occupancy and warp efficiency \cite{yangDesignPrinciplesSparse2018}}: At the intra-operator level IR, operator schedule supports GPU-model-specific specification of launch configurations involving threading block size, register number limits, etc. \\
+\textbf{Novel sparse matrix format \cite{liuCSR5EfficientStorage2015,yanYaSpMVAnotherSpMV2014}}: Introduce new sparse format access logic into our system.\\
+\textbf{Different intermediate data layout~\cite{STRZODKA2012429, HOMANN2018325}:} Introduce new intermediate data access logic into our system. \\
+\textbf{Different parallel strategies \cite{yangDesignPrinciplesSparse2018}}: We may achieve this by conducting loop transform and changing the assignment of for-loop levels to architecture levels. We may further specify a custom mapping function to obtain a graph element, e.g., row index, from the loop index. \\\bottomrule              
+\end{tabular}
+\caption{Examples of new features and ways to incorporate kernel optimization techniques into the proposed compiler.}\label{tab:feature_examples}
+\end{table}
+
+\subsection{Use in Distributed Systems}
+We focused Hector on single-GPU performance. The kernels Hector generated could serve distributed systems, e.g., DistDGL~\cite{zhengDistDGLDistributedGraph2020}. Since performance improvement results from the reduction of data movements and memory footprints, it also applies to distributed systems.
+
+
+
+\subsection{Incorporating TACO} In Hector, we craft the code generators on our own for quick prototyping and focus on high-level optimizations. As Hector establishes our understanding of what constructs are needed in the code generators for the traversal kernels, we think it viable to incorporate TACO for the code generation in the future because TACO provides a mature compiler infrastructure that enables the expression and application of optimizations~\cite{kjolstadTensorAlgebraCompilation2019} for sparse tensor operations in a principled manner, e.g., loop transformations. However, RGNN scenarios still pose several open challenges to TACO, especially in edge-centric operations. Take the edgewise dot product when computing $att_{HGT}$ in Figure~\ref{fig:rgat_layer} as an example. First, to balance the workload, we evenly split the edgewise loop and assign them to threading blocks. If we specify the source-node-wise loop and destination-node-wise loop as two dimensions in the TACO iteration space, we need to fuse these two loop levels to form the edgewise loop to split, but such loop fusion between two loop levels of iteration variables is not supported by TACO yet. Alternatively, we can specify the edgewise loop index as one dimension in the iteration space. In this case, we need indirect addressing to retrieve node data: We need to retrieve \textcircled{1} the source/destination node index by edgewise loop index and then \textcircled{2} the node data. However, indirect addressing is not natively supported in TACO and thus poses the second challenge.
+

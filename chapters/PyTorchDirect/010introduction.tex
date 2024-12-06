@@ -1,0 +1,58 @@
+\section{Introduction}
+
+
+\kwa{(Paragraph removed.)}
+
+Compared with traditional neural networks, GPU-accelerated systems in large-scale GNNs suffer from performance penalties caused by low effective PCIe bandwidth.
+The scale of graphs in real \kwc{world} is way larger than the tens of gigabytes of capacity the GPU device memory offers;
+Therefore, raw data of the graph is stored in the host memory, and during each mini-batch, the input to the model is transferred to the GPU.
+\hide{\hl{This introduces performance overhead because scatter in memory and transfer to GPU are expensive.}}
+Figure~\ref{fig:GrpahSAGE} illustrates the data layout and transfer during the training of a GNN model.
+The features of all nodes in the graph are stored in a two-dimensional array, as shown on the left in Figure~\ref{fig:GrpahSAGE}.
+They encode prior knowledge and stay constant during training.
+In this example, the vector for node 9 is to be output.
+Its neighbors and two-hop neighbors are sampled and required as the input for the graph.
+These sampled neighbors are scattered in the node features array.
+Unfortunately, transferring the scattered data to GPUs with the existing deep neural network (DNN) libraries is not straightforward.
+Initiating a DMA call on each data fragment is too expensive; therefore, the CPUs must first gather the scattered data before the transfer.
+For small graphs, this inefficiency can be bypassed by simply loading the whole features into GPU memory, but real-world graphs can go beyond billions of nodes~\cite{Pinterest} and thus far exceed the GPU memory capacity.
+
+Conventional wisdom would argue that since the graph feature data is in host memory, the CPU should have a significant latency and bandwidth advantage over GPUs in performing the gather operations on these features. However, with their ability to issue a massive number of concurrent memory accesses to tolerate latency, GPUs have recently been shown to be effective in accessing data with irregular structures like graphs in the host memory~\cite{minEMOGIEfficientMemoryaccess2020}. If successful, having the GPUs perform gather operations also eliminates the need to perform a data copy from the CPU to the GPU after the feature data has been gathered.
+It is, therefore, desirable to explore the use of GPUs to perform feature gather accesses to significantly reduce end-to-end GNN training time. %
+This chapter presents PyTorch-Direct, a GPU-centric data access design for GNN training.
+
+
+
+PyTorch-Direct adopts zero-copy, \kwc{in which} the node features array is stored in host-pinned memory and can be accessed by GPU \kwc{kernels directly}.
+In a zero-copy access, the GPU sends a PCIe read request to the host memory at the time the GPU core dereferences the pointer.
+Contrary to the usual belief, after careful optimization on access pattern, zero-copy access yields close to peak PCIe bandwidth~\cite{minEMOGIEfficientMemoryaccess2020}.
+Moreover, it removes the redundant data copy in the host memory incurred during a block transfer.
+Figure~\ref{fig:design_comparison}(b) shows the transfer procedure after adopting zero-copy access.
+Comparing it with the original procedure in Figure~\ref{fig:design_comparison}(a) shows that 1) redundant data copy is eliminated, and 2) finer-granularity zero-copy access replaces block transfer.
+
+\kwc{Nevertheless, i}ncorporating zero-copy into PyTorch is non-trivial.
+PyTorch does not support zero-copy.
+Nor did PyTorch take cross-device access into consideration in its tensor abstraction.
+Specifically, every tensor in PyTorch is bound to a specific device, as illustrated in Figure~\ref{fig:design_comparison}(b).
+Such device binding governs the computation device and the physical location of the result tensor.
+\hide{\hl{PyTorch is compute-oriented not data-oriented}} PyTorch-Direct devises and implements a full-fledged new tensor type, the unified tensor, accessible by both CPU and GPU.
+It is underlain by zero-copy access, enabling the scheme in Figure~\ref{fig:design_comparison}(b), and is seamlessly integrated into the PyTorch APIs and runtime.
+Changes needed to adopt it in GNN scripts are minimal.
+
+The contributions of PyTorch-Direct are as follows:
+
+\begin{enumerate}
+    \item We identify inefficient host-to-GPU data transfer patterns in existing GNN training schemes that cause high CPU utilization and increase end-to-end training time.
+    \item We propose
+          a GPU-centric data access paradigm with a novel circular shift indexing optimization for GNN training to reduce training time and CPU utilization.
+    \item We seamlessly incorporate the proposed system level changes into a popular DNN library, PyTorch, with a comprehensive implementation to benefit a broad range of GNN architectures.
+\end{enumerate}
+
+
+
+
+
+
+
+
+

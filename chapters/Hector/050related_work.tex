@@ -1,0 +1,23 @@
+\section{Related Work}
+\label{sec:related_work}
+
+
+\noindent\textbf{General GPU-accelerated GNN libraries.} DGL~\cite{wang2019deep} and PyG~\cite{fey2019fast} are among the most popular GNN Python packages that enable easy development and evaluation of GNN models.  DGL~\cite{wang2019deep} proposes to implement GNN as SpMM/SDDMM operations. PyG's key scheme is scatter and gather operations that switch between edge-parallel regions and node-parallel regions. Hector instead built upon GEMM and traversal templates. By lowering the operators to GEMM as much as possible, Hector obtains better RGNN performance.
+Besides,  DGL, PyG, and work based on them do not currently provide inter-operator level IR. Hector shows the benefit of capturing
+inter-operator and inter-relation opportunities, e.g., linear-operator reordering, by operator rewrite at the inter-operator level IR. Systems without IR at this level eagerly execute operators without support for such optimizations.
+
+\noindent
+\textbf{GNN end-to-end compilers.} Seastar~\cite{wuSeastarVertexcentricProgramming2021} proposes a vertex-centric compiler stack to generate performant kernels throughout the model's training and/or inference. Graphiler~\cite{xieGraphilerCompilerGraph} proposes to program the message passing data flow graph and devises several TorchScript transforms to emit highly optimized inference code. Similarly, HGL~\cite{guiHGLAcceleratingHeterogeneous} is an RGNN compiler. These prior arts 1)~expose PyTorch tensors as operands of all operations to users and 2)~replicate weight to unleash parallelism due to a lack of support for flexible data access schemes and/or code generation. Thus, they suffer more or less from memory inefficiency and performance degradation.
+Although the general concept of multi-level IR is not new, Hector proposes new optimizations appropriate for each level and effective in reducing data movement and code bloat in the current state of practice:
+Linear operator reordering and compact materialization are two key and novel features to capture and eliminate repetitive computation across edge types. Section~\ref{sec:gnn_applicability} discussed the generalizability of Hector.
+
+\noindent
+\textbf{Kernel code optimization.} FeatGraph~\cite{huFeatGraphFlexibleEfficient2020a} proposes a code optimization framework on top of TVM~\cite{chenTVMAutomatedEndtoEnd2018} for user-defined-function-enabled SpMM and SDDMM. Some work proposed optimizations for specific GNN kernels. GE-SpMM~\cite{huangEfficientSparseMatrix2021, huangGESpMMGeneralPurposeSparse2020}, and work~\cite{hidayetogluAtScaleSparseDeep2020} propose optimized schedules for SpMM. Others involve Seastar~\cite{wuSeastarVertexcentricProgramming2021}, PyTorch-Direct~\cite{minLargeGraphConvolutional2021}, and TLPGNN~\cite{fuTLPGNNLightweightTwoLevel2022}. As Hector shows, SpMM/SDDMM is not the only essential kernel in end-to-end RGNN execution. Hector is orthogonal to these prior arts as they can be incorporated into Hector as operator-specific schedules or new templates.
+
+\noindent
+\textbf{Code generation.} 
+SparseTIR~\cite{yeSparseTIRComposableAbstractions2022} and TACO~\cite{kjolstadTensorAlgebraCompiler2017} propose IR and code generator for sparse tensor operations.
+MLIR~\cite{lattnerMLIRScalingCompiler2021} proposes multi-level IR design for deep learning.
+Aligned with this direction, FusedMM~\cite{rahmanFusedMMUnifiedSDDMMSpMM2021} unifies the SpMM and SDDMM CPU kernels. 
+Hector is different as a higher-level compiler that optimizes the type of operators and generates efficient kernels to handle multiple edge/node types in the RGNN execution. SparseTIR and TACO are tensor-level compilers for sparse operators that may or may not specialize in deep learning.
+While we do not intend to reinvent the general-purpose sparse tensor code generator for completeness or performance, some of these works inspire us. They may be incorporated to enhance the Hector code generator.

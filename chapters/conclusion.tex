@@ -1,0 +1,15 @@
+\chapter{Conclusion}\label{ch:conclusion}
+
+Due to both demand from the workload and hardware advancements, it becomes increasingly critical to ensure data efficiency in deep learning training. 
+Data inefficiency in deep learning training arises from the data-intensive nature of workloads and the oversimplification inherent in the PyTorch computing stack.
+To effectively mitigate data inefficiency for deep learning training, this dissertation analyzes data inefficiency in representative deep training tasks, specifically in GNNs and LLMs. It then proposes novel runtime and code generation techniques to mitigate these challenges and implements these optimizations seamlessly within the PyTorch stack while maintaining strong programmability and interoperability.
+
+First, this dissertation \kwc{devises} the Hector IR and code generator. By introducing domain-specific high-level abstraction and code generation, Hector systematically addresses significant performance challenges due to the inherent memory intensiveness, the gap between the programming interface and kernel APIs, and the high kernel optimization cost due to the kernel coupling with layout and heterogeneity.
+
+Then, this dissertation \kwc{designs and implements} PyTorch-Direct to incorporate the GPU-centric PCIe data transfer paradigm in PyTorch for GNN training. PyTorch-Direct significantly reduces CPU utilization, resulting in higher end-to-end training performance.
+
+Last, LLM training systems are increasingly constrained by GPU memory, with activations being one of the primary culprits. This dissertation \kwc{creates} the SSDTrain activations offloading framework with a direct GPU–SSD data path and good interoperability.
+
+This dissertation proves that code generation and runtime techniques \kwc{can} effectively mitigate data inefficiency in deep learning training.
+
+

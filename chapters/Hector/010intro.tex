@@ -1,0 +1,62 @@
+\section{Introduction\kwa{(Chapter 3 and Chapter 4 are swapped.)}}
+
+
+\kwa{(Two sentences are removed.)}
+
+GNN-specific machine learning frameworks, e.g., DGL~\cite{wang2019deep} and PyTorch Geometric~(PyG)~\cite{fey2019fast}, \kwc{are optimized specifically for homogeneous graphs.}
+\kwc{For example, they} implement several highly-optimized operations, e.g., sparse-dense matrix multiply~(SpMM) and sampled dense-dense matrix multiply~(SDDMM), to speed up the execution~\cite{huFeatGraphFlexibleEfficient2020a}.
+Most of these operators and optimizations are for homogeneous graphs~\cite{huangEfficientSparseMatrix2021,yeSparseTIRComposableAbstractions2022,huFeatGraphFlexibleEfficient2020a}.
+However, real-world graphs are typically heterogeneous by nature and contain multiple types of nodes and edges.
+For example, a citation graph may represent entities involving authors, articles, etc., as nodes of different types;
+the edges may model various types of relations, e.g., an article citing the others.
+Recently, to incorporate the information provided by such heterogeneity,
+RGNNs~\cite{rgcn,hgt} are proposed to define dedicated parameters and data paths for each type.
+
+
+RGNN poses {three major} challenges to the existing GPU computation stack due to its inherent computation patterns, the gap between the programming interface and the kernel APIs, and the high cost of kernel code optimizations due to its coupling with data layout and heterogeneity.
+
+The first challenge with GNN implementations on GPUs stems from their need to traverse graphs and {scatter/gather tensor data} in order to use high-performance GEMM kernels to implement message passing.
+In RGNN, message passing is the procedure in each layer where an edgewise operation is followed by a nodewise aggregation operation. In other words, messages are passed through edges to the destination nodes. We show how message passing works in models in Section~\ref{sec:rgnn_formulation}.
+During message passing, the graph structure and data layout significantly impact the memory access patterns and execution throughput~\cite{wangEmpiricalAnalysisPerformance2021, zhengNatureGraphNeural2021}.~(Examples and details are in Section~\ref{sec:design}).
+Furthermore, as the connectivity of the input graph is involved in the {gather} computation, the computation patterns of GNNs are affected not only by the model definition but also by the graph. Such data-dependent behavior precludes any one-size-fits-all optimization strategy when executing GNNs. Additionally, RGNN introduces new complications into the design space due to {the need for the operations to account for heterogeneity. We detail this in Section~\ref{sec:background}.} 
+
+
+The second challenge in RGNN implementation stems from the lack of an abstraction layer between the programming interface and kernel APIs, resulting in extra data movement.  A typical example is an edgewise typed linear layer.
+We detail the context and cause of the extra data movement in the edgewise typed linear layer in Section~\ref{sec:segmentmm}. 
+But essentially, an edgewise typed linear layer multiplies one of the vectors on each edge with the layer weight dedicated to the edge type.
+To achieve this, many existing PyTorch-based systems materialize a temporary three-dimensional edgewise weight tensor, where the slice corresponding to each edge is the weight matrix of its edge type.
+This temporary weight tensor is huge, causing redundant data access and memory footprint.
+Hector avoids such unnecessary copying activities by having typed linear transformations operate on views of tensors, a feature that PyTorch lacks, and decouples the materialization of its operands 
+from the source-level expression~(Section \ref{sec:materialization}).
+
+
+
+
+Third, code generation is necessary. 
+High-performance neural network implementations have historically been based on pre-built libraries, e.g.,  cuBLAS~\cite{nvidiaCublasgemmBatchedCuBLASDocuemntation}. 
+GNNs make this less practical because the number of kernels to optimize is multiplied by the number of adjacency-matrix storage format choices such as Blocked-Ellpack~\cite{PMPP4}.
+For instance, cuSPARSE only supports the latter in a few APIs~\cite{AcceleratingMatrixMultiplication}.
+The typed edges and nodes of RGNN further exacerbate the problem, which makes the traditional pre-built libraries even less adequate and compels framework developers to either painstakingly develop optimized layers from scratch or settle for slow implementation.
+For example, it took more than a month for a full-time engineer to implement and deploy the typed linear layer of RGNN in DGL~\cite{nisaFeatureGatherMm}.
+Another consequence is the performance degradation caused by limited kernels due to high implementation costs. For example, the  DGL  \texttt{HeteroConv} operator uses a Python native loop to separately launch kernels for each of the relation types in a heterogeneous graph, leading to serial execution of small GPU kernels that underutilize GPU resources on small graphs. 
+
+
+
+To systematically address these challenges, we propose Hector, a two-level IR and an associated code generator framework. 
+The higher-level IR, called inter-operator level IR, defines the model semantics as sets of operators and expresses layout choices in a decoupled manner. At the lower level, the intra-operator level IR provides the facility to express template specialization and lower them to CUDA kernels. 
+We further propose two optimizations, i.e., compact materialization~(Section~\ref{sec:materialization}) and linear operator reordering~(Section~\ref{sec:inter_op_opt}).
+We show in the corresponding Sections how these two optimizations are conveniently enabled by the two-level IR design.
+\cref{sec:inter_op_ir,sec:intra-op-ir,sec:ir_design} further the design and rationale of the two-level IR.
+
+
+
+In short, Hector 1)~represents the key properties of RGNN models to capture opportunities to reduce memory accesses in inter-operator scheduling and materialization, 2)~generates code flexibly with proper data access schemes to eliminate redundant data movement, and 3)~expresses model semantics, data layout, and operator-specific optimization in a decoupled manner to reduce programming effort. To the best of our knowledge, Hector is the first to propose a multi-level IR to capture RGNN-specific opportunities involving cross-relation inter-operator optimizations and tensor data layout with consideration of the type dimension added by RGNNs.
+The contribution of Hector is as follows:
+\begin{enumerate}
+\item We propose the Hector two-level IR and code generation framework to systematically optimize and generate GPU kernels for RGNN training and inference. It bridges the gap between the programming interface and the kernel generation process, decouples models, data layout, and operator-specific schedule from each other, and leverages optimization opportunities from the three aspects.
+\item \label{contrb:eval} We devised the Hector code generator based on two generalized CUDA templates, {i.e., a} GEMM template and a node and/or edge traversal template. The generated code {achieves} up to 9.9$\times$ speed-up in inference and up to 43.7$\times$ speed-up in training compared to the {best among the} state-of-the-art systems~\cite{wuSeastarVertexcentricProgramming2021, xieGraphilerCompilerGraph, guiHGLAcceleratingHeterogeneous} when running RGCN, RGAT, and HGT~\cite{rgcn, busbridge2019relational, hgt} on heterogeneous datasets provided by DGL and OGB packages~\cite{huOpenGraphBenchmark2021, aifb, mutag, bgs, am, toutanovaObservedLatentFeatures2015}. Hector also encountered fewer out-of-memory~(OOM) errors, which is significantly alleviated by the optimization mentioned in Contribution~\ref{contrib:dse}. 
+{In fact, with compaction enabled, Hector incurs no OOM error for all the datasets tested.}
+\item \label{contrib:dse} We devised two optimizations: compact tensor materialization and linear operator reordering.
+The best combination of options varies across models and datasets and further obtains up to 3.8$\times$ speed-up in inference and 2.7$\times$ speed-up in training compared to our basic generated code mentioned in Contribution~\ref{contrb:eval}. 
+Through profiling, we found that the improved memory efficiency allows Hector to accommodate larger computations and improve GPU hardware utilization for forward propagation. In contrast, backward propagation does not benefit from larger input due to its latency-bound nature caused by atomic updates and outer products. 
+\end{enumerate}

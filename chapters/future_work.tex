@@ -1,0 +1,88 @@
+\chapter{Discussion and Future Work}\label{ch:future_work}
+
+\kwc{Before concluding this dissertation in Chapter~\ref{ch:conclusion}, this chapter provides a final discussion on the contributions made in this work and \kwc{introduces} potential future directions. Section~\ref{sec:discuss_pytorch_integration} examines the advantages and limitations of various approaches to integrate techniques into the PyTorch stack. Section~\ref{sec:future_training} explains how future work can further our investigation into data-efficient deep learning training. Lastly, Section~\ref{sec:future_tabular} \kwc{elaborates on} how the optimizations proposed in this dissertation can be applied to other data-intensive workloads, particularly tabular data analysis.}
+
+\section{\kwc{Discussion on Integrating Techniques into the PyTorch Stack}\kwa{(New Section)}}
+\label{sec:discuss_pytorch_integration}
+
+In this dissertation, we propose and implement three projects: Hector, PyTorch-Direct, and SSDTrain. All are incorporated into the PyTorch stack in different ways. 
+PyTorch-Direct wraps the zero-copy-enabled dispatch ruleset into a full-fledged unified tensor type and incorporates that into the PyTorch C++ runtime, which requires recompiling the PyTorch \kwc{source code}~(Section~\ref{sec.PyTorch_direct.Overview}).
+Hector generates the kernels, compiles them as a PyTorch extension library, and loads them before training. The code generator and auxiliary logic, e.g., graph loading, are in Python~(Section~\ref{sec:hector_overview}).
+SSDTrain has all logic in Python, except for an interposed library to register memory in GDS during device memory allocation and deregister the memory during deallocation~(Section~\ref{sec:ssdtrain_overview}). The software components of the three works are shown in Table~\ref{tab:components_integration}. 
+
+Similarly to Hector, most of the literature incorporating changes into the PyTorch \kwc{runtime} \kwc{creates} Python extension \kwc{libraries} to achieve this, e.g., DeepSpeed~\cite{rasleyDeepSpeedSystemOptimizations2020}, Megatron~\cite{shoeybiMegatronLMTrainingMultiBillion2020a}, Graphiler~\cite{xieGraphilerCompilerGraph}. Similarly to PyTorch-Direct, some projects make changes to the PyTorch \kwc{source code} and recompile it to incorporate extensive modifications to the PyTorch runtime. For example, FlashNeuron~\cite{baeFlashNeuronSSDEnabledLargeBatch2021} introduces the tensor offloading mechanism into PyTorch. PopTorch~\cite{anthonybarbierAddNewKeys2022} incorporates support for GraphCore's accelerator, which requires adding a new dispatch key.
+
+Unlike Python extension \kwc{libraries} and interposed libraries, modifying and recompiling the PyTorch \kwc{source code} usually requires consistent efforts to keep up with the latest PyTorch changes in the long run, especially when the changes are maintained in an out-of-tree repository. Merging modifications to the official PyTorch repository will alleviate such consistent efforts, if possible. Therefore, for research projects, modifying the PyTorch \kwc{source code} is advisable only when the other two methods are insufficient in adding the required functionality, e.g., adding new dispatch keys. 
+In light of this, our SSDTrain project is carefully developed without modifying the PyTorch \kwc{source code}, unlike other projects such as FlashNeuron, as discussed in Section~\ref{sec:ssdtrain_related}.
+As for the PyTorch-Direct project, changes in the PyTorch \kwc{source code} are required to incorporate the GPU-centric paradigm in exchange for keeping PyTorch's original programming interface. We have worked with the DGL team to integrate the particular optimized transfer scheme into the DGL repository~\cite{minjiewangReleaseV080Dmlc2022,seungwonminDocAddOfficial2021,seungwonminFeatureAddMultiGPU2021,seungwonminFeaturePerformanceGPUIntroducingUnifiedTensor2021,xinyaoDglDGLGraphpin_memory_2022} so that the optimized scheme can be activated through explicit new APIs without the need to recompile modified PyTorch \kwc{source code}.
+
+
+
+\begin{table}[]
+\centering
+\begin{tabular}{lcccc} 
+\toprule
+& \begin{tabular}[c]{@{}c@{}}Modified and \\ recompiled\\  PyTorch \\ \kwc{source code}\end{tabular} & \begin{tabular}[c]{@{}c@{}}Python\\ extension\\\kwc{library}\end{tabular} & \begin{tabular}[c]{@{}c@{}}Interposed\\ library\end{tabular} & \begin{tabular}[c]{@{}c@{}}Python\\ code\end{tabular} \\ \midrule
+\textbf{Hector}         &   &\Checkmark &   & \Checkmark  \\
+\textbf{PyTorch-Direct} & \Checkmark &  &   &  \\
+\textbf{SSDTrain}       &   & & \Checkmark  & \Checkmark  \\
+DeepSpeed~\cite{rasleyDeepSpeedSystemOptimizations2020}        &   &\Checkmark &   & \Checkmark  \\
+FlashNeuron~\cite{baeFlashNeuronSSDEnabledLargeBatch2021} & \Checkmark &  &   &  \\
+Graphiler~\cite{xieGraphilerCompilerGraph}       &   &\Checkmark &   & \Checkmark  \\
+Megatron~\cite{shoeybiMegatronLMTrainingMultiBillion2020a}       &   &\Checkmark &   & \Checkmark  \\
+PopTorch~\cite{anthonybarbierAddNewKeys2022} & \Checkmark &  &   &  \\
+\bottomrule
+\end{tabular}
+\caption{Comparing software components of PyTorch-Direct, Hector, SSDTrain, and existing work.\label{tab:components_integration}}
+\end{table}
+
+
+\section{Further Exploration in Deep Learning Training}
+\label{sec:future_training}
+\kwc{Cost modeling and inter-operator scheduling are two key areas to deepen our exploration in deep learning training.} Cost modeling helps choose the optimized design in the efficient frontier of the design space complicated by data efficiency.
+Inter-operator scheduling helps hide the latency of memory accesses and data transfers with other operators.
+
+\subsection{Cost Models}
+\noindent
+\textbf{For Hector, devise algorithms to select layouts, optimizations, and schedules according to model, input graph, and GPU architecture.} One of the most important compiler research problems is the algorithm that makes choices among candidates in the design space. It remains an open \kwc{problem} how the data-dependent sparse operations and layout choices fit in the cost model and layout choices. \kwc{Pertinently, in various applications in high-performance computing (HPC) with multiple layout and kernel choices, researchers have developed heuristics to make the optimized choice}~\cite{zhaoBridgingGapDeep2018,almasriParallelizingMaximalClique2023,kawtikwarHyLACHybridLinear2024}. Besides, the specific microarchitecture of each GPU model also makes a difference due to the architecture-specific features available, e.g., asynchronous loading to shared memory since Ampere~\cite{nvidiaControllingDataMovement2020}, and different microarchitecture characteristics in each model. Therefore, it is meaningful to investigate their impact and incorporate them into decision-making.
+
+\noindent
+\textbf{For SSDTrain, devise algorithms to pick the optimized design choice in the combined design space of both LLM parallelism strategies and tensor placement strategies.} SSDTrain demonstrates that offloading opens up design choices on the efficient frontier, given a parallelism strategy. With the memory savings from SSDTrain offloading, we may choose a new LLM parallelism strategy with higher throughput at the cost of more per-GPU memory use. \kwc{For example, as mentioned, the larger amount of activations SSDTrain allows to accommodate can be allocated to enlarge the number of micro-batches and/or to enlarge the micro-batch size.
+On the other hand, pipeline parallelism brings about bubbles of idleness of the device, which could be mitigated by a larger number of micro-batches~\cite{shoeybiMegatronLMTrainingMultiBillion2020a}.
+Both the throughput boost by increased micro-batch size and that by increased number of micro-batches saturate at a point, leaving the optimized strategy to allocate activations memory given parallelism configurations an intriguing question to explore.}\kwa{(Sentences moved from Section~\ref{sec:discussion}.)} \kwc{A broader and more general challenge} is how to systematically explore the combined design space of both LLM parallelism and tensor placement strategies and find the optimized design choice. In addition to throughput, TCO is an essential target. For example, it is valuable to understand the minimal SSD requirements for a particular scenario and the upgrade cost from an existing cluster configuration.
+
+\subsection{Inter-Operator Scheduling}
+\subsubsection{Leveraging CUDA Graph}
+In its latest systems software stack, Nvidia provides CUDA Graph as a performant task graph runtime. CUDA Graph reduces the launch overhead of kernels and schedules and executes tasks in the graph while their dependencies are preserved. We use CUDA Graph for low-overhead inter-operator scheduling. 
+
+\noindent
+\textbf{Hide memory latency of sparse operations by enhancing intra-SM parallelism via CUDA Graph.} We have observed that both GNNs and LLMs involve a mixture of sparse operations and dense operations: for GNNs, we have broken down the models to GEMM kernels and traversal kernels; for LLMs, the layers are typically dense if neither specific design, e.g., mixture-of-experts~\cite{zhouMixtureofExpertsExpertChoice2022}, is performed nor pruning is done, but the output of the activation layers is typically sparse by its nature.
+
+The mixture of dense and sparse operations allows us to hide the memory latency of sparse operations by running dense and sparse operations in parallel. In particular, we will break down sparse and dense operations into smaller kernels and schedule them so that both dense and sparse kernels are run on the same SM simultaneously. For example, GEMM and SpMM can be broken down by partitioning the input matrices into blocks and performing matrix multiplication among block pairs before reduction. To reduce launch overhead, we use the CUDA graph to manage task dependencies and execute the series of kernels.
+
+\noindent
+\textbf{For GNNs, optimize data movement in mini-batch training.} Graphs not fitting into GPU memory must stay in host memory or even storage during RGNN execution. In each step, the subgraphs are sampled and transferred to the GPU. With knowledge of graph semantics, data layout, and operator-specific schedules, Hector can help improve the scheduling of sampling and data transfer and generate CUDA kernels that gather data from the host memory on the fly~\cite{minLargeGraphConvolutional2021}.
+
+\subsubsection{Leveraging Warp Specialization}
+During backward propagation, the system needs to compute the gradient of both the weights and the input for each layer. This doubles the cost compared to forward propagation. On the other hand, the computation of the two gradients uses identical tensors, creating an opportunity yet to be leveraged to reuse data across the calculation of the two gradients.
+
+
+\section{\kwc{Applying Techniques to Tabular Data Analysis}\kwa{(New Section)}}
+\label{sec:future_tabular}
+Data tables have been widely adopted in data analytics and machine learning pipelines. Data analytics aims to gain insights from massive data, where data tables are a core data structure. In SQL database systems, tables are essential elements to organize raw data and outputs of each query; in many data processing libraries and languages, such as pandas and R, data tables are the fundamental class as well. In machine learning pipelines, data tables hold the data, at least during preprocessing, before input to the machine learning model. The preprocessing stages involve ETL (extract, transform, and load) and feature engineering. \kwc{Preprocessing may} reoccur in data streaming scenarios or when iteratively refining the algorithm. Data processing takes a substantial amount of time: 80\%—90\% of the work time of a data scientist is dedicated to processing data~\cite{kaggle2017KaggleMachine, crowdflower2017DataScientist2017}. 
+
+Thanks to the high bandwidth of device memory and a massive number of processing units, GPUs could greatly help analytical workloads that typically involve many simple homogeneous operations. Aligned with this direction, many GPU-optimized databases have been established recently, involving Brytlyt, Kinetica, OmniSci (formerly MapD), SQream, etc.~\cite{DoingRealityCheck2018} 
+Nvidia released the RAPIDS Python suite to allow developers to run end-to-end data analytics and data science pipelines on the GPU~\cite{nvidiaRAPIDSGPUAcceleratedData2018}. Central to it is the cudf package, which is the CUDA equivalent of the data table Python package pandas. In cudf, in-memory data tables are in columnar format. Other packages in RAPIDS, e.g., BlazingSQL, cuGraph, etc., enable SQL queries, graph analytics, etc., by using cudf to store data in data tables. 
+
+Similarly to deep learning training, tabular data analysis is data-intensive~\cite{caoGPUDatabaseSystems2023}. Data table operations typically have small arithmetical intensity, e.g., comparing the values of two columns and light arithmetic computation of a few cells for each row. Besides, real-world tabular data analysis usually involves massive data, rendering the limited GPU HBM memory capacity a problem~\cite{xiangyaoyuGPUDatabasesNew2024}.
+
+The techniques proposed in this dissertation can also be applied to tabular data analysis. \kwc{As an} example, \kwc{the following} explains how code generation with flexible data access schemes proposed by the Hector project could help tabular data analysis with indexes.
+Index is an essential optimization in tabular data analysis~\cite{optimizdbaDatabaseOptimizationTechniques2018,oracleMySQLMySQL842024}: Index stores the presorted results of a column or multiple columns and the mapping from the result to the row index in the original table. Many data table operations can be accelerated using the index to save computation.
+Nevertheless, GPU-accelerated tabular data analysis software has limited support on indices~\cite{IndexTable2023,sqreamSQreamsUniqueArchitecture2024}.
+By introducing a Hector-like code generator with optional indirect addressing by index, the software gets 1)~optimized kernel development cost \kwc{without the need to maintain kernel variants of the same operator} and 2)~free of intermediate data tables when doing indirect addressing.
+Such optimization is aligned with kernel fusion for tabular data analysis~\cite{caoGPUDatabaseSystems2023,palkarEvaluatingEndendOptimization2018}, and the optimizations to avoid materialization of intermediate data tables~\cite{nakandalaTensorCompilerUnified2020}. However, none of the\kwc{se} existing projects support the index.
+
+
+
+
+

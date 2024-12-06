@@ -1,0 +1,200 @@
+
+\documentclass[edeposit,tocnosub,noragright,centerchapter,12pt]{uiucecethesis09}
+
+
+\makeatletter
+\usepackage{svg}
+\usepackage[textsize=scriptsize, colorinlistoftodos,prependcaption]{todonotes}
+\usepackage{xargs}  
+\usepackage{diagbox}
+\usepackage{subcaption}
+
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage{setspace}
+\usepackage{epsfig}  %
+\usepackage{amsmath}  %
+\usepackage{lscape}  %
+\usepackage{caption}	%
+
+
+\usepackage[shortlabels]{enumitem}
+\usepackage{bbding}
+\usepackage{comment}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{soul}
+\usepackage[linesnumbered,ruled,vlined,resetcount,algochapter]{algorithm2e}
+\usepackage{listings}
+
+\makeatletter
+\let\old@lstKV@SwitchCases\lstKV@SwitchCases
+\def\lstKV@SwitchCases#1#2#3{}
+\makeatother
+\usepackage{lstlinebgrd}
+\makeatletter
+\let\lstKV@SwitchCases\old@lstKV@SwitchCases
+
+\lst@Key{numbers}{none}{%
+    \def\lst@PlaceNumber{\lst@linebgrd}%
+    \lstKV@SwitchCases{#1}%
+    {none:\\%
+     left:\def\lst@PlaceNumber{\llap{\normalfont
+                \lst@numberstyle{\thelstnumber}\kern\lst@numbersep}\lst@linebgrd}\\%
+     right:\def\lst@PlaceNumber{\rlap{\normalfont
+                \kern\linewidth \kern\lst@numbersep
+                \lst@numberstyle{\thelstnumber}}\lst@linebgrd}%
+    }{\PackageError{Listings}{Numbers #1 unknown}\@ehc}}
+\makeatother
+
+
+\newcommand\mycommfont[1]{\textcolor{blue}{\texttt{#1}}}
+
+\newcommand\hide[1]{}
+\SetCommentSty{mycommfont}
+\usepackage{cite}
+\usepackage[hyphens]{url}
+\usepackage[]{hyperref}         %
+
+\definecolor{ballblue}{rgb}{0.13, 0.67, 0.8}
+\definecolor{bleudefrance}{rgb}{0.19, 0.55, 0.91}
+\definecolor{altred}{rgb}{0.98,0.14,0.56}
+\definecolor{deepred}{rgb}{0.7,0,0}
+\definecolor{deepgreen}{rgb}{0,0.5,0}
+\definecolor{lightgreen}{rgb}{0,0.6,0}
+
+\lstset{
+    language=python,%
+    basicstyle=\ttfamily\footnotesize,
+    numbers=left,
+    xleftmargin=20pt,
+    frame=tb,
+    otherkeywords={self},             %
+    keywordstyle=\color{bleudefrance},%
+    emphstyle=\color{deepred},%
+    stringstyle=\color{deepgreen},
+    commentstyle=\color{lightgreen}\itshape,
+    escapeinside={<@}{@>},
+    showstringspaces=false
+}
+
+\makeatletter
+\let\orig@lstnumber=\thelstnumber
+
+\newcommand\lstsetnumber[1]{\gdef\thelstnumber{#1}}
+\newcommand\lstresetnumber{\global\let\thelstnumber=\orig@lstnumber}
+\makeatother
+
+\usepackage[capitalize]{cleveref}
+\usepackage{rotating}
+
+
+
+
+
+
+
+\newif\ifsubmit
+\submittrue
+
+\ifsubmit
+\newcommand{\ssl}[1]{{}}
+\newcommand{\kwc}[1]{{#1}}
+\newcommand{\kwa}[1]{{}}
+\else
+\newcommand{\ssl}[1]{{\color{blue}SSL: #1}}
+\newcommand{\kwc}[1]{{\color{blue}#1}}
+\newcommand{\kwa}[1]{{\color{blue}#1}}
+\fi
+
+
+
+\usepackage[htt]{hyphenat}
+
+\usepackage[justification=raggedright]{caption}	%
+
+
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]{
+            \node[shape=circle,draw,inner sep=0pt] (char) {#1};}}
+
+\usepackage{colortbl}
+\phdthesis
+
+\title{Code Generation and Runtime Techniques for Enabling Data-Efficient Deep Learning Training on GPUs}
+\author{Kun Wu}
+\department{Electrical and Computer Engineering}
+\degreeyear{2024}
+
+\advisor{Wen-mei Hwu}
+
+\committee{Professor Wen-mei Hwu, Chair\\
+        Professor Deming Chen\\
+        Associate Professor Steven S. Lumetta\\
+        Professor Sanjay Patel}%
+
+\begin{document}
+
+
+\maketitle
+
+\parindent 1em%
+
+\frontmatter
+
+\setcounter{page}{2}
+
+
+
+\begin{abstract}
+
+As deep learning models scale, their training cost has surged significantly. Due to both hardware advancements and limitations in current software stacks, the need for data efficiency has risen. Data efficiency refers to the effective hiding of data access latency and the avoidance of unnecessary data movements. Significant challenges arise from the growing disparity between GPU memory bandwidth and computational throughput, imminent GPU memory capacity limitations, and inefficiencies in the PyTorch software stack, including a lack of device-specific PCIe transfer optimizations and high-level domain-specific abstractions.
+
+To effectively mitigate these data inefficiencies for deep learning training, this dissertation analyzes data inefficiency in representative deep training tasks, specifically in graph neural networks (GNNs) and large language models (LLMs). It then proposes novel runtime and code generation techniques to mitigate these challenges and implements these optimizations seamlessly within the PyTorch stack while maintaining strong programmability and interoperability.
+
+
+First, Hector intermediate representation (IR) and its code generator are \kwc{devised} to introduce domain-specific high-level abstraction and systematically address memory-intensive performance challenges for relational graph neural networks (RGNNs). The performance challenges stem from RGNN's inherent memory intensiveness, the gap between the programming interface and the kernel APIs, and the high kernel optimization cost due to kernel coupling with layout and heterogeneity. Using a general matrix multiply~(GEMM) template and a traversal template, Hector achieves up to a 43.7$\times$ speed-up in training and inference compared to the state-of-the-art systems. Linear operator reordering and compact tensor materialization further achieve up to 3.8$\times$ speed-up compared to the Hector unoptimized code.
+
+Second, PyTorch-Direct is introduced to incorporate the GPU-centric PCIe data transfer paradigm in PyTorch for GNN training. PyTorch-Direct significantly reduces CPU utilization, resulting in higher end-to-end training performance. For the input datasets and GNN architectures evaluated, PyTorch-Direct decreases the overall training time by up to 38.2\%.
+
+Finally, in LLM training, \kwc{the throughput has been} increasingly constrained by GPU memory \kwc{capacity}. \kwc{To mitigate this}, the SSDTrain \kwc{offloading} framework is \kwc{designed and implemented}. Since activations take most of the GPU memory, SSDTrain offloads activations to \kwc{Non-Volatile Memory Express (NVMe)} SSDs with a direct GPU–SSD data path and good interoperability.  The evaluation shows that SSDTrain reduces activations peak memory use by up to 47\% with negligible overhead. \kwc{We further analyze how the reduced activation memory use may be leveraged to increase throughput by increasing micro-batch size and reducing pipeline parallelism bubbles.}
+
+\kwc{Together, these contributions demonstrate that c}ode generation and runtime techniques can systematically mitigate the data \kwc{management} bottlenecks in deep learning training, which stem from the data-intensive nature of workloads and the oversimplification inherent in the deep learning training software stack.
+
+\end{abstract}
+
+
+\begin{dedication}
+To my parents, for their unconditional love and support.
+\end{dedication}
+
+\input{ack}
+
+\tableofcontents
+
+
+
+\input{abbr}
+
+
+
+\mainmatter
+
+\input{chapters/intro.tex}
+\input{chapters/Background/chapter_background}
+\input{chapters/Hector/chapter_hector}
+\input{chapters/PyTorchDirect/chapter_pytorch_direct}
+\input{chapters/SSDTrain/chapter_SSDTrain}
+\input{chapters/future_work}
+\input{chapters/conclusion}
+
+
+\appendix
+
+\backmatter
+
+\bibliographystyle{IEEE_ECE}
+\bibliography{ref/Hector/final_kuns_manually_revised_based_on_zotero_generated,ref/Hector/ref, ref/Hector/thesis, ref/Proposal/AICE2023,ref/Proposal/IIDAI2023,ref/Proposal/NextSteps,ref/Proposal/CUDASchedulingPolicy,ref/SSDTrain/manual,ref/SSDTrain/ManuallyValidatedFlashtrainfromZotero,ref/PyTorchDirect/ref,ref/Background,ref/PyDArXiv/example_paper,ref/FutureWork}
+
+
+
+\end{document}
